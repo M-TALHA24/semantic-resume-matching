@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resume Matching</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main class="container">
+    <h1>Resume Matching</h1>
+    <p class="subtitle">Test semantic matching against your backend.</p>
+
+    <section class="panel">
+      <label for="jobDescription">Job Description</label>
+      <textarea id="jobDescription" rows="10" placeholder="Paste the job description here..."></textarea>
+
+      <div class="controls">
+        <label for="topK">Top results</label>
+        <input id="topK" type="number" min="1" max="20" value="5">
+        <button id="searchBtn" type="button">Search</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="status-row">
+        <h2>Backend Status</h2>
+        <span id="healthStatus" class="status">Checking...</span>
+      </div>
+      <div id="errorBox" class="error hidden"></div>
+      <h2>Results</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Resume ID</th>
+            <th>Similarity Score</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody">
+          <tr>
+            <td colspan="2" class="muted">No search yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    const healthStatus = document.getElementById('healthStatus');
+    const searchBtn = document.getElementById('searchBtn');
+    const errorBox = document.getElementById('errorBox');
+    const resultsBody = document.getElementById('resultsBody');
+
+    async function checkHealth() {
+      try {
+        const res = await fetch('/health');
+        const data = await res.json();
+        if (res.ok && data.status === 'healthy') {
+          healthStatus.textContent = data.engine_loaded ? 'Healthy (engine loaded)' : 'Healthy (engine not loaded)';
+          healthStatus.className = data.engine_loaded ? 'status ok' : 'status warn';
+        } else {
+          healthStatus.textContent = 'Unhealthy';
+          healthStatus.className = 'status bad';
+        }
+      } catch (err) {
+        healthStatus.textContent = 'Unavailable';
+        healthStatus.className = 'status bad';
+      }
+    }
+
+    function showError(message) {
+      errorBox.textContent = message;
+      errorBox.classList.remove('hidden');
+    }
+
+    function clearError() {
+      errorBox.textContent = '';
+      errorBox.classList.add('hidden');
+    }
+
+    function renderResults(results) {
+      if (!results || results.length === 0) {
+        resultsBody.innerHTML = '<tr><td colspan="2" class="muted">No matching resumes found.</td></tr>';
+        return;
+      }
+
+      resultsBody.innerHTML = results
+        .map(item => `<tr><td><a class="resume-link" href="/resume/${item.resume_id}" target="_blank" rel="noopener noreferrer">${item.resume_id}</a></td><td>${item.similarity_score}</td></tr>`)
+        .join('');
+    }
+
+    async function runSearch() {
+      clearError();
+      const jobDescription = document.getElementById('jobDescription').value.trim();
+      const topK = Number(document.getElementById('topK').value || 5);
+
+      if (!jobDescription) {
+        showError('Please enter a job description.');
+        return;
+      }
+
+      searchBtn.disabled = true;
+      searchBtn.textContent = 'Searching...';
+
+      try {
+        const res = await fetch('/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_description: jobDescription, k: topK })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || 'Search failed.');
+          renderResults([]);
+          return;
+        }
+
+        renderResults(data.results);
+      } catch (err) {
+        showError('Could not connect to backend. Make sure the Flask server is running.');
+      } finally {
+        searchBtn.disabled = false;
+        searchBtn.textContent = 'Search';
+      }
+    }
+
+    searchBtn.addEventListener('click', runSearch);
+    checkHealth();
+  </script>
+</body>
+</html>

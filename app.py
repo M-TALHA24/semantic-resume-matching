@@ -1,9 +1,26 @@
-from flask import Flask, request, jsonify
+import os
+from flask import Flask, request, jsonify, render_template, send_file
 from flask_cors import CORS
 from search_engine import SearchEngine
 
 app = Flask(__name__)
 CORS(app)  # This allows Shazaib's frontend to talk to your backend
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+RESUME_ROOT = os.path.join(BASE_DIR, "data", "raw", "resumes", "data", "data")
+
+
+def build_resume_file_index():
+    resume_files = {}
+    for root, _, files in os.walk(RESUME_ROOT):
+        for file_name in files:
+            if file_name.lower().endswith(".pdf"):
+                resume_id = os.path.splitext(file_name)[0]
+                resume_files[int(resume_id)] = os.path.join(root, file_name)
+    return resume_files
+
+
+RESUME_FILES = build_resume_file_index()
 
 # Initialize your search engine
 # It will load the model and the index you built earlier
@@ -18,6 +35,27 @@ except Exception as e:
 def health():
     """Confirms the API is running."""
     return jsonify({"status": "healthy", "engine_loaded": engine is not None})
+
+@app.route('/', methods=['GET'])
+def home():
+    """Serves the minimal frontend for testing search."""
+    return render_template('index.html')
+
+@app.route('/resume/<int:resume_id>', methods=['GET'])
+def view_resume(resume_id):
+    """Serves the original PDF resume from the codebase."""
+    resume_path = RESUME_FILES.get(resume_id)
+    if not resume_path or not os.path.exists(resume_path):
+        return jsonify({"error": "Resume not found"}), 404
+
+    return send_file(resume_path, mimetype='application/pdf', as_attachment=False, download_name=f'{resume_id}.pdf')
+
+@app.errorhandler(404)
+def handle_not_found(error):
+    """Serve the frontend at the root path even if the live process is stale."""
+    if request.path == '/' or request.path == '/index.html':
+        return render_template('index.html'), 200
+    return jsonify({"error": "Not found"}), 404
 
 @app.route('/search', methods=['POST'])
 def search():
