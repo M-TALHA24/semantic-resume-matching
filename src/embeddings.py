@@ -10,7 +10,7 @@ RESUME_PATH = "data/processed/resumes_cleaned.csv"
 JOBS_PATH = "data/processed/jobs_cleaned.csv"
 
 OUTPUT_DIR = "embeddings"
-RESUME_EMB_PATH = os.path.join(OUTPUT_DIR, "resume_vectors.npy")
+RESUME_EMB_PATH = os.path.join(OUTPUT_DIR, "resumes_vectors.npy")
 JOB_EMB_PATH = os.path.join(OUTPUT_DIR, "job_vectors.npy")
 RESUME_IDS_PATH = os.path.join(OUTPUT_DIR, "resume_ids.json")
 
